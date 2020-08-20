@@ -1,22 +1,48 @@
 package config
 
+import (
+	"encoding/json"
+	"io/ioutil"
+	"os"
+)
+
 type Backend struct {
-	Id     int
-	Host   string
-	Port   int
-	Weight int
+	Id     int    `json:"id"`
+	Host   string `json:"host"`
+	Port   int    `json:"port"`
+	Weight int    `json:"weight"`
+}
+
+type Frontend struct {
+	BindPort int       `json:"bindPort"`
+	Backends []Backend `json:"backends"`
 }
 
 type Config struct {
-	BindPort int
-	Backends []Backend
+	Frontends []Frontend `json:"frontends"`
 }
 
 var singleConfig Config
 
 func init() {
-	singleConfig = Config{BindPort: 2021}
-	singleConfig.Backends = append(singleConfig.Backends, Backend{Id: 1, Host: "127.0.0.1", Port: 8001})
+
+	configFilePath, exists := os.LookupEnv("BRELAY_CONFIG_FILE")
+	if !exists {
+		configFilePath = "/etc/brelay.conf"
+	}
+
+	data, err := ioutil.ReadFile(configFilePath)
+
+	if err != nil {
+		panic(err)
+	}
+
+	err = json.Unmarshal(data, &singleConfig)
+
+	if err != nil {
+		panic(err)
+	}
+
 }
 
 func Get() Config {
