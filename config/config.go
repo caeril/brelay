@@ -7,15 +7,18 @@ import (
 )
 
 type Backend struct {
-	Id     int    `json:"id"`
-	Host   string `json:"host"`
-	Port   int    `json:"port"`
-	Weight int    `json:"weight"`
+	Id       int    `json:"id"`
+	Hostname string `json:"hostname"`
+	Port     int    `json:"port"`
+	Weight   int    `json:"weight"`
 }
 
 type Frontend struct {
-	BindPort int       `json:"bindPort"`
-	Backends []Backend `json:"backends"`
+	BindPort    int       `json:"bind_port"`
+	Hostname    string    `json:"hostname"`
+	Backends    []Backend `json:"backends"`
+	TLSKeyPath  string    `json:"tls_key_path"`
+	TLSCertPath string    `json:"tls_cert_path"`
 }
 
 type Config struct {

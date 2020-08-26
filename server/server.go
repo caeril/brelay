@@ -31,10 +31,10 @@ func getFromOrigin(backend config.Backend, or OriginRequest) (OriginResponse, bo
 
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
-	defer fasthttp.ReleaseRequest(req)   // <- do not forget to release
-	defer fasthttp.ReleaseResponse(resp) // <- do not forget to release
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
 
-	req.SetRequestURI(fmt.Sprintf("http://%s:%d%s", backend.Host, backend.Port, or.Uri))
+	req.SetRequestURI(fmt.Sprintf("http://%s:%d%s", backend.Hostname, backend.Port, or.Uri))
 
 	if or.Verb == "POST" || or.Verb == "PUT" {
 		req.Header.SetMethod(or.Verb)
@@ -77,6 +77,9 @@ func Run() {
 			// default round-robin
 			rrCx := 0
 
+			// tls enabled?
+			tls := len(lfrontend.TLSKeyPath) > 0 && len(lfrontend.TLSCertPath) > 0
+
 			primaryHandler := func(ctx *fasthttp.RequestCtx) {
 
 				validResponse := false
@@ -109,7 +112,7 @@ func Run() {
 						rrCx = 0
 					}
 
-					fmt.Printf("dispatching to %s\n", lbackend)
+					//fmt.Printf("dispatching to %s\n", lbackend)
 
 					proxyResponse, validResponse = getFromOrigin(lbackend, proxyRequest)
 
@@ -133,7 +136,12 @@ func Run() {
 								beHost := fmt.Sprintf(":%d", lbackend.Port)
 								feHost := fmt.Sprintf(":%d", lfrontend.BindPort)
 								sv = strings.ReplaceAll(sv, beHost, feHost)
-
+								if len(lbackend.Hostname) > 0 && len(lfrontend.Hostname) > 0 {
+									sv = strings.ReplaceAll(sv, lbackend.Hostname, lfrontend.Hostname)
+								}
+								if tls && strings.HasPrefix(sv, "http:") {
+									sv = strings.Replace(sv, "http://", "https://", 1)
+								}
 								fmt.Printf("handling redirect, sending to %s\n", sv)
 
 								ctx.Response.Header.SetBytesK(header.Key, sv)
@@ -158,9 +166,13 @@ func Run() {
 
 			feHost := fmt.Sprintf(":%d", lfrontend.BindPort)
 
-			fmt.Printf("Now listening on %s\n", feHost)
-			fasthttp.ListenAndServe(feHost, primaryHandler)
-
+			if tls {
+				fmt.Printf("Now listening (TLS) on %s\n", feHost)
+				fasthttp.ListenAndServeTLS(feHost, lfrontend.TLSCertPath, lfrontend.TLSKeyPath, primaryHandler)
+			} else {
+				fmt.Printf("Now listening (PLAIN) on %s\n", feHost)
+				fasthttp.ListenAndServe(feHost, primaryHandler)
+			}
 		}(frontend)
 	}
 
