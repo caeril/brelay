@@ -3,8 +3,8 @@ package server
 import (
 	"fmt"
 	"github.com/caeril/brelay/config"
+	"github.com/caeril/brelay/logging"
 	"github.com/valyala/fasthttp"
-	"log"
 	"strings"
 	"time"
 )
@@ -43,7 +43,8 @@ func getFromOrigin(backend config.Backend, or OriginRequest) (OriginResponse, bo
 		req.Header.SetMethod(or.Verb)
 		// don't need to set the body
 	} else {
-		log.Printf("Unsupported verb %s\n", or.Verb)
+
+		logging.Error(fmt.Sprintf("Unsupported verb %s", or.Verb))
 		return OriginResponse{StatusCode: 500, Body: []byte("This method is unsupported by brelay. Sorry.")}, true
 	}
 
@@ -55,7 +56,7 @@ func getFromOrigin(backend config.Backend, or OriginRequest) (OriginResponse, bo
 
 	err := fasthttp.Do(req, resp)
 	if err != nil {
-		log.Printf("ERROR from upstream: %s\n", err)
+		logging.Error(fmt.Sprintf("Error from upstream: %s", err.Error()))
 		return OriginResponse{}, false
 	}
 
@@ -93,8 +94,6 @@ func Run() {
 					proxyRequest.Body = ctx.PostBody()
 				}
 
-				log.Printf("%s %s\n", proxyRequest.Verb, proxyRequest.Uri)
-
 				ctx.Request.Header.VisitAllInOrder(func(k, v []byte) {
 					proxyRequest.Headers = append(proxyRequest.Headers, Header{k, v})
 					ctx.Response.Header.DelBytes(k)
@@ -111,8 +110,6 @@ func Run() {
 					if rrCx >= len(lfrontend.Backends) {
 						rrCx = 0
 					}
-
-					//fmt.Printf("dispatching to %s\n", lbackend)
 
 					proxyResponse, validResponse = getFromOrigin(lbackend, proxyRequest)
 
@@ -142,7 +139,8 @@ func Run() {
 								if tls && strings.HasPrefix(sv, "http:") {
 									sv = strings.Replace(sv, "http://", "https://", 1)
 								}
-								fmt.Printf("handling redirect, sending to %s\n", sv)
+
+								logging.Access(fmt.Sprintf("handling redirect, sending to %s\n", sv))
 
 								ctx.Response.Header.SetBytesK(header.Key, sv)
 							} else {
@@ -154,6 +152,9 @@ func Run() {
 					}
 					ctx.SetStatusCode(proxyResponse.StatusCode)
 					ctx.Response.AppendBody(proxyResponse.Body)
+
+					logging.Access(fmt.Sprintf("%d %s %s", proxyResponse.StatusCode, proxyRequest.Verb, proxyRequest.Uri))
+
 					return
 				}
 

@@ -21,7 +21,13 @@ type Frontend struct {
 	TLSCertPath string    `json:"tls_cert_path"`
 }
 
+type Logging struct {
+	AccessPath string `json:"access_path"`
+	ErrorPath  string `json:"error_path"`
+}
+
 type Config struct {
+	Logging   Logging    `json:"logging"`
 	Frontends []Frontend `json:"frontends"`
 }
 
@@ -31,7 +37,7 @@ func init() {
 
 	configFilePath, exists := os.LookupEnv("BRELAY_CONFIG_FILE")
 	if !exists {
-		configFilePath = "/etc/brelay.conf"
+		configFilePath = "/etc/brelay/brelay.conf"
 	}
 
 	data, err := ioutil.ReadFile(configFilePath)
@@ -44,6 +50,14 @@ func init() {
 
 	if err != nil {
 		panic(err)
+	}
+
+	if len(singleConfig.Logging.AccessPath) < 2 {
+		singleConfig.Logging.AccessPath = "/var/log/brelay/access.log"
+	}
+
+	if len(singleConfig.Logging.ErrorPath) < 2 {
+		singleConfig.Logging.ErrorPath = "/var/log/brelay/error.log"
 	}
 
 }

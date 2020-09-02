@@ -12,6 +12,17 @@ Very early stages, so all this supports right now is:
  - JSON configuration
  - Basic round-robin
  - Static retry interval (1 second)
+ - Filesystem logging with stdout fallback
+ - Basic TLS support
+
+ Todo:
+
+  - Allocate buffers from sync.Pool - right now we're creating way too much garbage
+  - Expanded logging backends
+  - Configurable retry intervals, timeouts, etc.
+
+
+
 
 
 
