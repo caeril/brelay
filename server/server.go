@@ -71,7 +71,7 @@ func getFromOrigin(backend config.Backend, or OriginRequest) (OriginResponse, bo
 
 func Run() {
 
-	for _, frontend := range config.Get().Frontends {
+	for _, tfrontend := range config.Get().Frontends {
 
 		go func(lfrontend config.Frontend) {
 
@@ -83,9 +83,54 @@ func Run() {
 
 			primaryHandler := func(ctx *fasthttp.RequestCtx) {
 
+				// first, select the host based on incoming ( first pass, naive iteration )
+				host := config.Host{}
+				{
+					requestHostname := string(ctx.Request.Host())
+					foundHost := false
+					for _, thost := range lfrontend.Hosts {
+						if requestHostname == thost.Hostname || thost.Hostname == "" {
+							host = thost
+							foundHost = true
+						}
+					}
+					if !foundHost {
+						logging.Error(fmt.Sprintf("Unable to match [%s] with any hostnames", requestHostname))
+						ctx.Error("Couldn't find it, Sorry!", fasthttp.StatusNotFound)
+						return
+					}
+				}
+
+				requestUri := string(ctx.RequestURI())
+				path := config.Path{}
+				{
+					foundPath := false
+					for _, tpath := range host.Paths {
+						if strings.HasPrefix(requestUri, tpath.Path) {
+							path = tpath
+							foundPath = true
+						}
+					}
+					if !foundPath {
+						logging.Error(fmt.Sprintf("Unable to match [%s] with any paths in host [%s]", requestUri, host.Hostname))
+						for _, tpath := range host.Paths {
+							logging.Error(fmt.Sprintf(" |- Found [%s]", tpath.Path))
+						}
+						ctx.Error("Couldn't find it, Sorry!", fasthttp.StatusNotFound)
+						return
+					}
+
+					// Strip path prefix from initial request URI
+					// todo: inefficient - clean this up later
+					requestUri = strings.Replace(requestUri, path.Path, "", 1)
+					if !strings.HasPrefix(requestUri, "/") {
+						requestUri = "/" + requestUri
+					}
+				}
+
 				validResponse := false
 
-				proxyRequest := OriginRequest{Uri: string(ctx.RequestURI())}
+				proxyRequest := OriginRequest{Uri: requestUri}
 				if ctx.IsGet() {
 					proxyRequest.Verb = "GET"
 				}
@@ -104,12 +149,12 @@ func Run() {
 
 				for !validResponse {
 
-					// Select the target backend - for now just grab the first one
-					lbackend = lfrontend.Backends[rrCx]
+					// Select the target backend - we're not going to care about race conditions for now
 					rrCx++
-					if rrCx >= len(lfrontend.Backends) {
+					if rrCx >= len(path.Backends) {
 						rrCx = 0
 					}
+					lbackend = path.Backends[rrCx]
 
 					proxyResponse, validResponse = getFromOrigin(lbackend, proxyRequest)
 
@@ -133,8 +178,8 @@ func Run() {
 								beHost := fmt.Sprintf(":%d", lbackend.Port)
 								feHost := fmt.Sprintf(":%d", lfrontend.BindPort)
 								sv = strings.ReplaceAll(sv, beHost, feHost)
-								if len(lbackend.Hostname) > 0 && len(lfrontend.Hostname) > 0 {
-									sv = strings.ReplaceAll(sv, lbackend.Hostname, lfrontend.Hostname)
+								if len(lbackend.Hostname) > 0 && len(host.Hostname) > 0 {
+									sv = strings.ReplaceAll(sv, lbackend.Hostname, host.Hostname)
 								}
 								if tls && strings.HasPrefix(sv, "http:") {
 									sv = strings.Replace(sv, "http://", "https://", 1)
@@ -174,7 +219,7 @@ func Run() {
 				fmt.Printf("Now listening (PLAIN) on %s\n", feHost)
 				fasthttp.ListenAndServe(feHost, primaryHandler)
 			}
-		}(frontend)
+		}(tfrontend)
 	}
 
 	// wait forever until termination

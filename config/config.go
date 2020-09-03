@@ -13,12 +13,21 @@ type Backend struct {
 	Weight   int    `json:"weight"`
 }
 
+type Path struct {
+	Path     string    `json:"path"`
+	Backends []Backend `json:"backends"`
+}
+
+type Host struct {
+	Hostname string `json:"hostname"`
+	Paths    []Path `json:"paths"`
+}
+
 type Frontend struct {
-	BindPort    int       `json:"bind_port"`
-	Hostname    string    `json:"hostname"`
-	Backends    []Backend `json:"backends"`
-	TLSKeyPath  string    `json:"tls_key_path"`
-	TLSCertPath string    `json:"tls_cert_path"`
+	BindPort    int    `json:"bind_port"`
+	TLSKeyPath  string `json:"tls_key_path"`
+	TLSCertPath string `json:"tls_cert_path"`
+	Hosts       []Host `json:"hosts"`
 }
 
 type Logging struct {
