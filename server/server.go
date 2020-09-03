@@ -196,7 +196,8 @@ func Run() {
 						}
 					}
 					ctx.SetStatusCode(proxyResponse.StatusCode)
-					ctx.Response.AppendBody(proxyResponse.Body)
+					ctx.Response.SetBodyRaw(proxyResponse.Body)
+					ctx.Response.SetConnectionClose()
 
 					logging.Access(fmt.Sprintf("%d %s %s", proxyResponse.StatusCode, proxyRequest.Verb, proxyRequest.Uri))
 
