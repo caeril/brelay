@@ -213,12 +213,18 @@ func Run() {
 
 			feHost := fmt.Sprintf(":%d", lfrontend.BindPort)
 
+			server := &fasthttp.Server{
+				Handler:            primaryHandler,
+				Name:               "BRelay v0.0.2",
+				MaxRequestBodySize: (1024 * 1024 * 32),
+			}
+
 			if tls {
 				fmt.Printf("Now listening (TLS) on %s\n", feHost)
-				fasthttp.ListenAndServeTLS(feHost, lfrontend.TLSCertPath, lfrontend.TLSKeyPath, primaryHandler)
+				server.ListenAndServeTLS(feHost, lfrontend.TLSCertPath, lfrontend.TLSKeyPath)
 			} else {
 				fmt.Printf("Now listening (PLAIN) on %s\n", feHost)
-				fasthttp.ListenAndServe(feHost, primaryHandler)
+				server.ListenAndServe(feHost)
 			}
 		}(tfrontend)
 	}
