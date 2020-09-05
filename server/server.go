@@ -2,11 +2,12 @@ package server
 
 import (
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/caeril/brelay/config"
 	"github.com/caeril/brelay/logging"
 	"github.com/valyala/fasthttp"
-	"strings"
-	"time"
 )
 
 type Header struct {
@@ -21,10 +22,11 @@ type OriginResponse struct {
 }
 
 type OriginRequest struct {
-	Verb    string
-	Uri     string
-	Headers []Header
-	Body    []byte
+	Verb     string
+	Uri      string
+	ClientIP string
+	Headers  []Header
+	Body     []byte
 }
 
 func getFromOrigin(backend config.Backend, or OriginRequest) (OriginResponse, bool) {
@@ -53,6 +55,9 @@ func getFromOrigin(backend config.Backend, or OriginRequest) (OriginResponse, bo
 	for _, header := range or.Headers {
 		req.Header.SetBytesKV(header.Key, header.Value)
 	}
+
+	req.Header.Set("X-Forwarded-For", or.ClientIP)
+	req.Header.Set("Real-IP", or.ClientIP)
 
 	err := fasthttp.Do(req, resp)
 	if err != nil {
@@ -128,9 +133,12 @@ func Run() {
 					}
 				}
 
+				// grab initial client ip
+				clientIP := ctx.RemoteIP().String()
+
 				validResponse := false
 
-				proxyRequest := OriginRequest{Uri: requestUri}
+				proxyRequest := OriginRequest{Uri: requestUri, ClientIP: clientIP}
 				if ctx.IsGet() {
 					proxyRequest.Verb = "GET"
 				}
@@ -195,11 +203,13 @@ func Run() {
 							ctx.Response.Header.SetBytesKV(header.Key, header.Value)
 						}
 					}
+					ctx.Response.Header.Set("X-Forwarded-For", clientIP)
+					ctx.Response.Header.Set("Real-IP", clientIP)
 					ctx.SetStatusCode(proxyResponse.StatusCode)
 					ctx.Response.SetBodyRaw(proxyResponse.Body)
 					ctx.Response.SetConnectionClose()
 
-					logging.Access(fmt.Sprintf("%d %s %s", proxyResponse.StatusCode, proxyRequest.Verb, proxyRequest.Uri))
+					logging.Access(fmt.Sprintf("[%s]  %d  %s  %s", clientIP, proxyResponse.StatusCode, proxyRequest.Verb, proxyRequest.Uri))
 
 					return
 				}
