@@ -81,7 +81,7 @@ func Run() {
 		go func(lfrontend config.Frontend) {
 
 			// default round-robin
-			rrCx := 0
+			rrCx := uint64(0)
 
 			// tls enabled?
 			tls := len(lfrontend.TLSKeyPath) > 0 && len(lfrontend.TLSCertPath) > 0
@@ -157,12 +157,10 @@ func Run() {
 
 				for !validResponse {
 
-					// Select the target backend - we're not going to care about race conditions for now
+					localRr := int(rrCx % uint64(len(path.Backends)))
 					rrCx++
-					if rrCx >= len(path.Backends) {
-						rrCx = 0
-					}
-					lbackend = path.Backends[rrCx]
+
+					lbackend = path.Backends[localRr]
 
 					proxyResponse, validResponse = getFromOrigin(lbackend, proxyRequest)
 
